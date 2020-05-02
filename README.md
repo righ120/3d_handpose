@@ -18,10 +18,13 @@ Python packages used by the example provided:
 ## Overall Model Architecture
 <img src="img/model_architecture.png" width="900px" height="300px" alt="model_architecture"></img><br/>
 
+** (image) -> HandSegNet -> (hand_mask) -> CropAndResize -> (cropped_hand_image) -> PoseNet -> (hand_keypoints_map) -> PriorPose -> (hand_keypoints_3d_coords, rotation_matrix) **
+
 모델은 총 세 개의 하위 모델들로 이루어져 있다. <br/>
 (1) HandSegNet에서는 이미지에서 양 손은 찾는다. <br/>
 (2) PoseNet 에서는 손 이미지에서 21개의 keypoints를 찾는다. 각각의 keypoints는 손바닥, 엄지, 손목... 등등을 가리킨다.<br/>
 (3) PriorPose 에서는 2D - keypoints를 3D 로 매핑하는 역할을 한다.<br/>
+
 
 ### HandSegNet
  
@@ -30,7 +33,7 @@ Python packages used by the example provided:
 <img src="img/Seg_3.png" width="900px" height="300px" alt="Seg_3"></img><br/>
 
 Input (3x256x256): RHD dataset 기준으로 360x360 이미지를 입력받아 256x256 크기로 랜덤하게 잘라낸다. <br/> 
-Label (256x256): Mask data는 배경은 0, 사람은 1, 왼손은 2~17, 오른손은 18~ 로 표기 되어 있다. 여기서 양 손을 1 나머지는 0으로 처리한다.<br/>
+Label (256x256): Mask data는 배경은 0, 사람은 1, 왼손은 2-17, 오른손은 18- 로 표기 되어 있다. 여기서 양 손을 1 나머지는 0으로 처리한다.<br/>
 
 Loss: 각 픽셀 당 BinaryCrossEntropy Loss를 적용하여 학습시킨다.<br/>
 
