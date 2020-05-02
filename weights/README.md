@@ -1,1 +1,0 @@
-weights download link : https://lmb.informatik.uni-freiburg.de/projects/hand3d/ColorHandPose3D_data_v3.zip
