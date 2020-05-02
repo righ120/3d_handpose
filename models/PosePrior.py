@@ -10,7 +10,8 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from data.data_loader import PoseNetDataset, CenteredCrop, ToTensor
+from data.data_loader import PriorPoseDataset, CenteredCrop, ToTensor
+from models.PoseNet import PoseNet
 import skimage.transform as transform
 import time
 import copy
@@ -18,28 +19,31 @@ import copy
 class ViewPoints(nn.Module):
     def __init__(self, P):
         super().__init__()
-        self.layer1 = nn.Conv2d(21, 32, (3,3), stride=2, padding=1)
-        self.layer2 = nn.Conv2d(32, 32, (3,3), stride=1, padding=1)
+        self.layer1 = nn.Conv2d(21, 32, (3,3), stride=1, padding=1)
+        self.layer2 = nn.Conv2d(32, 32, (3,3), stride=2, padding=1)
         self.layer3 = nn.Conv2d(32, 64, (3,3), stride=1, padding=1)
         self.layer4 = nn.Conv2d(64, 64, (3,3), stride=2, padding=1)
         self.layer5 = nn.Conv2d(64, 128, (3,3), stride=1, padding=1)
         self.layer6 = nn.Conv2d(128, 128, (3,3), stride=2, padding=1)
 
-        self.layer8 = nn.Linear(130, 512)
+        self.layer8 = nn.Linear(2050, 512)
         self.layer8_d = nn.Dropout(0.2)
         self.layer9 = nn.Linear(512, 512)
         self.layer9_d = nn.Dropout(0.2)
         self.layer10 = nn.Linear(512, P)
 
     def forward(self, x):
+        x, hand_side = x
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
         x = F.relu(self.layer3(x))
         x = F.relu(self.layer4(x))
         x = F.relu(self.layer5(x))
         x = F.relu(self.layer6(x))
+        #print(x.view(-1,16,128).shape)
+        #print(hand_side.shape)
 
-        x = torch.cat((x.view(), torch.Tensor([0, 1])))
+        x = torch.cat((x.view(x.shape[0], -1), hand_side),-1)
         x = self.layer8_d(self.layer8(x))
         x = self.layer9_d(self.layer9(x))
         x = self.layer10(x)
@@ -47,55 +51,73 @@ class ViewPoints(nn.Module):
         return x
 
 class PosePrior(nn.Module):
-    def __init__():
+    def __init__(self):
         super().__init__()
         self.viewpoints = ViewPoints(3)
         self.canonical_coord = ViewPoints(63)
 
     def forward(self, x):
-        w = self.viewpoints(x)
-        R = self.canonical_coord(x)
+        R = self.viewpoints(x)
+        w = self.canonical_coord(x)
+
+        u_norm = torch.norm(R)
+        theta = u_norm
+
+        # some tmp vars
+        st = torch.sin(theta)
+        ct = torch.cos(theta)
+        one_ct = 1.0 - torch.cos(theta)
+        
+        ux = R[:,0] / u_norm
+        uy = R[:,1] / u_norm
+        uz = R[:,2] / u_norm
+
+        first_row = torch.stack([ct+ux*ux*one_ct,ux*uy*one_ct-uz*st,ux*uz*one_ct+uy*st],-1) 
+        second_row = torch.stack([uy*ux*one_ct+uz*st, ct+uy*uy*one_ct, uy*uz*one_ct-ux*st],-1)
+        thrid_row = torch.stack([uz*ux*one_ct-uy*st, uz*uy*one_ct+ux*st, ct+uz*uz*one_ct],-1)
+        R = torch.stack([first_row,second_row, thrid_row],1)
+        
         return w, R
 
-def train_model(posenet_model, poseprior_model, viewpoints_criterion, 
-                    R_criterion, optimizer, device, dataloaders, scheduler, num_epochs=25):
+def train_model(posenet_model, poseprior_model, criterion, optimizer, device, dataloaders, scheduler, num_epochs=25):
     since = time.time()
 
-    best_model_wts = copy.deepcopy(model.state_dict())
+    best_model_wts = copy.deepcopy(poseprior_model.state_dict())
     best_loss = 100000000000
     iter = 0
     posenet_model.eval()
+
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        for phase in ['train', 'valid']:
             if phase == 'train':
-                model.train()  # Set model to training mode
+                poseprior_model.train()  # Set model to training mode
             else:
-                model.eval()   # Set model to evaluate mode
+                poseprior_model.eval()   # Set model to evaluate mode
 
             running_loss = 0.0
             running_corrects = 0
             
             # Iterate over data.
-            for inputs,labels in dataloaders[phase]:
-                #print(iter)
-                #iter += 1    
+            for inputs, hand_side, _, coords_gt, R_gt in dataloaders[phase]: 
                 inputs = inputs.to(device).type(torch.float32)
-                
-                labels = labels.to(device).type(torch.float32)
-
-                # zero the parameter gradients
+                coords_gt  = coords_gt.to(device).type(torch.float32)
+                R_gt = R_gt.to(device).type(torch.float32)
+                hand_side = hand_side.to(device).type(torch.float32)
                 optimizer.zero_grad()
-
+                #print(hand_side.shape)
                 # forward
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     score1, score2, score3 = posenet_model(inputs)
-                    coord3d, R = poseprior_model((score1 + score2 + score3)/3)
+                    coord3d, R = poseprior_model(((score1 + score2 + score3)/3,hand_side))
                     
+                    loss = criterion(coord3d, coords_gt)
+                    loss += criterion(R, R_gt)
+
                     #print(loss)
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -132,25 +154,23 @@ if __name__ == "__main__":
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
     model = PoseNet().to(device)
+    poseprior_model = PosePrior().to(device)
 
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-    second_optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    third_optimizer = torch.optim.Adam(model.parameters(), lr=0.000001)
-
 
     data_transform = transforms.Compose([
         CenteredCrop(256)
         ])
 
-    train_dataset = PoseNetDataset("..\\data\\RHD_published_v2\\training","training", posenet_transform=data_transform)
-    valid_dataset = PoseNetDataset("..\\data\\RHD_published_v2\\evaluation","evaluation")
+    train_dataset = PriorPoseDataset("../data/RHD_published_v2/training","training", posenet_transform=data_transform)
+    valid_dataset = PriorPoseDataset("../data/RHD_published_v2/evaluation","evaluation", posenet_transform=data_transform)
 
     train_data_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=2, shuffle=False)
     vaild_data_loader = torch.utils.data.DataLoader(
         valid_dataset, batch_size=2, shuffle=False)
 
-    train_model(model, criterion, optimizer, device,
+    train_model(model, poseprior_model, criterion, optimizer, device,
                 dataloaders={"train":train_data_loader, "valid":vaild_data_loader}, scheduler=None, num_epochs=25)
 

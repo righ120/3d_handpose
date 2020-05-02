@@ -92,6 +92,7 @@ class PoseNet(nn.Module):
 
         return score1, score2, score3
 
+
 def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num_epochs=25):
     since = time.time()
 
@@ -103,7 +104,7 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()  # Set model to training mode
             else:
@@ -114,10 +115,8 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
             
             # Iterate over data.
             for inputs,labels in dataloaders[phase]:
-                #print(iter)
-                #iter += 1    
-                inputs = inputs.to(device).type(torch.float32)
                 
+                inputs = inputs.to(device).type(torch.float32)
                 labels = labels.to(device).type(torch.float32)
 
                 # zero the parameter gradients
@@ -142,6 +141,7 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
 
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
+            
             #if phase == 'train':
             #    scheduler.step()
 
@@ -165,6 +165,7 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
     model.load_state_dict(best_model_wts)
     return model
 
+
 if __name__ == "__main__":
      # train on the GPU or on the CPU, if a GPU is not available
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
@@ -172,21 +173,16 @@ if __name__ == "__main__":
     model = PoseNet().to(device)
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-    second_optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    third_optimizer = torch.optim.Adam(model.parameters(), lr=0.000001)
 
 
     data_transform = transforms.Compose([
         CenteredCrop(256)
         ])
 
-    train_dataset = PoseNetDataset("..\\data\\RHD_published_v2\\training","training", posenet_transform=data_transform)
-    valid_dataset = PoseNetDataset("..\\data\\RHD_published_v2\\evaluation","evaluation")
+    train_dataset = PoseNetDataset("../data/RHD_published_v2/training","training", posenet_transform=data_transform)
+    valid_dataset = PoseNetDataset("../data/RHD_published_v2/evaluation","evaluation", posenet_transform=data_transform)
 
-    train_data_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=2, shuffle=False)
-    vaild_data_loader = torch.utils.data.DataLoader(
-        valid_dataset, batch_size=2, shuffle=False)
+    train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=2, shuffle=True)
+    vaild_data_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=2, shuffle=False)
 
-    train_model(model, criterion, optimizer, device,
-                dataloaders={"train":train_data_loader, "valid":vaild_data_loader}, scheduler=None, num_epochs=25)
+    train_model(model, criterion, optimizer, device, dataloaders={"train":train_data_loader, "valid":vaild_data_loader}, scheduler=None, num_epochs=25)

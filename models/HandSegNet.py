@@ -9,7 +9,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from data.data_loader import HandSegDataset, RandomCrop, ToTensor
+from data.data_loader import HandSegDataset, RandomCrop,  TransposeAndToTensor
 import time
 import copy
 
@@ -75,7 +75,7 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()  # Set model to training mode
             else:
@@ -88,7 +88,6 @@ def train_model(model, criterion, optimizer, device, dataloaders, scheduler, num
             for inputs, labels in dataloaders[phase]:
                 
                 inputs = inputs.to(device, dtype=torch.float)
-                
                 labels = labels.to(device, dtype=torch.int64)
                 #print(labels[0])
                 # zero the parameter gradients
@@ -145,21 +144,17 @@ if __name__ == "__main__":
     model = HandSegNet().to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    second_optimizer = torch.optim.Adam(model.parameters(), lr=0.000001)
-    third_optimizer = torch.optim.Adam(model.parameters(), lr=0.0000001)
 
     data_transform = transforms.Compose([
         RandomCrop(256),
-        ToTensor()
+        TransposeAndToTensor()
         ])
     
-    train_dataset = HandSegDataset("..\\data\\RHD_published_v2\\training","training", data_transform)
-    valid_dataset = HandSegDataset("..\\data\\RHD_published_v2\\evaluation","evaluation")
+    train_dataset = HandSegDataset("../data/RHD_published_v2/training","training", data_transform)
+    valid_dataset = HandSegDataset("../data/RHD_published_v2/evaluation","evaluation")
 
-    train_data_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=2, shuffle=True)
-    vaild_data_loader = torch.utils.data.DataLoader(
-        valid_dataset, batch_size=2, shuffle=False)
+    train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=2, shuffle=True)
+    vaild_data_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=2, shuffle=False)
 
     train_model(model, criterion, optimizer, device,
                 dataloaders={"train":train_data_loader, "valid":vaild_data_loader}, scheduler=None, num_epochs=25)
