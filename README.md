@@ -35,7 +35,7 @@ Python packages used by the example provided:
 **Input (3x256x256)**: RHD dataset 기준으로 360x360 이미지를 입력받아 256x256 크기로 랜덤하게 잘라낸다. <br/> 
 **Label (256x256)**: Mask data는 배경은 0, 사람은 1, 왼손은 2-17, 오른손은 18- 로 표기 되어 있다. 여기서 양 손을 1 나머지는 0으로 처리한다.<br/>
 
-Loss: 각 픽셀 당 BinaryCrossEntropy Loss를 적용하여 학습시킨다.<br/>
+**Loss**: 각 픽셀 당 BinaryCrossEntropy Loss를 적용하여 학습시킨다.<br/>
 
 ### CropImage
 <img src="img/Crop_1.png" width="300px" height="600px" alt="Crop_1"></img>
