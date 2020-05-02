@@ -18,7 +18,7 @@ Python packages used by the example provided:
 ## Overall Model Architecture
 <img src="img/model_architecture.png" width="900px" height="300px" alt="model_architecture"></img><br/>
 
-** (image) -> HandSegNet -> (hand_mask) -> CropAndResize -> (cropped_hand_image) -> PoseNet -> (hand_keypoints_map) -> PriorPose -> (hand_keypoints_3d_coords, rotation_matrix) **
+**(image) -> HandSegNet -> (hand_mask) -> CropAndResize -> (cropped_hand_image) -> PoseNet -> (hand_keypoints_map) + (hand_side) -> PriorPose -> (hand_keypoints_3d_coords, rotation_matrix)**
 
 모델은 총 세 개의 하위 모델들로 이루어져 있다. <br/>
 (1) HandSegNet에서는 이미지에서 양 손은 찾는다. <br/>
@@ -38,9 +38,9 @@ Python packages used by the example provided:
 Loss: 각 픽셀 당 BinaryCrossEntropy Loss를 적용하여 학습시킨다.<br/>
 
 ### CropImage
-<img src="img/Crop_1.jpg" width="300px" height="600px" alt="Crop_1"></img>
-<img src="img/Crop_2.jpg" width="300px" height="600px" alt="Crop_2"></img>
-<img src="img/Crop_3.jpg" width="300px" height="600px" alt="Crop_3"></img><br/>
+<img src="img/Crop_1.png" width="300px" height="600px" alt="Crop_1"></img>
+<img src="img/Crop_2.png" width="300px" height="600px" alt="Crop_2"></img>
+<img src="img/Crop_3.png" width="300px" height="600px" alt="Crop_3"></img><br/>
 
 HandSegNet의 결과를 바탕으로 이미지에서 손만을 잘라낸다. <br/>
 Training 시엔 오른손과 왼손 중에서 더 큰 면적을 차지하는 손만을 잘라낸다.
